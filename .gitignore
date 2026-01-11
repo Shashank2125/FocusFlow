@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+.env
+*.pyc
+
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+UserSettings/
+
+# OS
+.DS_Store
+Thumbs.db
