@@ -40,3 +40,24 @@ def get_or_create_today_mission(user_id:int):
     db.refresh(mission)
     db.close()
     return mission
+#business logic
+@app.post("/missions/complete/{mission_id}")
+def complete_mission(mission_id:int):
+    db=SessionLocal()
+    mission=db.query(Mission).filter(Mission.id==mission_id).first()
+    if not mission:
+        db.close()
+        return{"error": "Mission not found"}
+    if mission.completed:
+        db.close()
+        return{"error": "Mission already completed"}
+    mission.completed=True
+    user=db.query(User).filter(User.id==mission.user_id).first()
+    if not user:
+        db.close()
+    user.xp+=10 #xp reward
+    db.commit()
+    db.refresh(user)
+
+    db.close()
+    return {"status": "Mission completed","xp": user.xp, "mission_id":mission.id}
