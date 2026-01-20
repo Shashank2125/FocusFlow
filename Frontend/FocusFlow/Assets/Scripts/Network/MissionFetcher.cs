@@ -3,6 +3,7 @@ using UnityEngine.Networking;
 using TMPro;
 using System.Collections;
 using UnityEngine.UI;
+using System;
 
 public class MissionFetcher : MonoBehaviour
 {
@@ -11,8 +12,10 @@ public class MissionFetcher : MonoBehaviour
 
 
 
+
    public TextMeshProUGUI missionText;
     void Start() {
+        CheckYesterdayMission();
         StartCoroutine(GetTodayMission());
     
    }
@@ -67,6 +70,19 @@ req.downloadHandler = new DownloadHandlerBuffer();
         else
         {
             Debug.LogError(req.error);
+        }
+    }
+    void CheckYesterdayMission()
+    {
+        MissionState last=MissionStateManager.Instance.LoadMissionState();
+        if (last==null) return;
+        string today=DateTime.Now.ToString("yyyy-mm-dd");
+        if(last.date!=today && last.status == MissionStatus.PENDING)
+        {
+            last.status=MissionStatus.FAILED;
+            MissionStateManager.Instance.SaveMissionState(last);
+
+            Debug.Log("MISSION FAILED: you broke the chain.");
         }
     }
 }
