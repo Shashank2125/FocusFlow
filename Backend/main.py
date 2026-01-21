@@ -4,7 +4,18 @@ from app.models.user import User, Base
 from app.models.mission import Mission
 from app.db.database import SessionLocal
 from datetime import date
+from pydantic import BaseModel
 app=FastAPI()
+
+class MissionUpdate(BaseModel):
+    missionID:int
+    date:str
+    status:str
+@app.post("/missions/update-status")
+def update_status(data:MissionUpdate):
+    print("MISSION UPDATE:", data)
+    return{"message":"status saved"}
+
 Base.metadata.create_all(bind=engine)
 @app.get("/")
 def root():
