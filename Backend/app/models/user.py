@@ -9,4 +9,6 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     rank = Column(String, default="E")
     xp = Column(Integer, default=0)
+    streak=Column(Integer,default=0)
+    last_active = Column(DateTime, nullable=True) 
     created_at = Column(DateTime, default=datetime.utcnow)

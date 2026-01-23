@@ -3,14 +3,19 @@ from app.db.database import engine
 from app.models.user import User, Base
 from app.models.mission import Mission
 from app.db.database import SessionLocal
-from datetime import date
+from datetime import date,timedelta
 from pydantic import BaseModel
 app=FastAPI()
+
 
 class MissionUpdate(BaseModel):
     missionID:int
     date:str
     status:str
+def calculate_xp(streak:int)->int:
+    base=50
+    bonus=min(streak*10,200)
+    return base+bonus
 @app.post("/missions/update-status")
 def update_status(data:MissionUpdate):
     print("MISSION UPDATE:", data)
@@ -55,6 +60,8 @@ def get_or_create_today_mission(user_id:int):
 @app.post("/missions/complete/{mission_id}")
 def complete_mission(mission_id:int):
     db=SessionLocal()
+    today=date.today()
+    #fetch mission
     mission=db.query(Mission).filter(Mission.id==mission_id).first()
     if not mission:
         db.close()
@@ -62,13 +69,31 @@ def complete_mission(mission_id:int):
     if mission.completed:
         db.close()
         return{"error": "Mission already completed"}
+    #mark mission completed
     mission.completed=True
+    #fetch user
     user=db.query(User).filter(User.id==mission.user_id).first()
     if not user:
         db.close()
-    user.xp+=10 #xp reward
+        return {"error":"User not found"}
+    #streak logic
+    if user.last_active:
+        last_day=user.last_active.date()
+        if last_day==today-timedelta(days=1):
+            user.streak+=1
+        else:
+            user.streak=1
+    else:
+        user.streak=1
+    #xp curve
+    xp_gained=calculate_xp(user.streak)
+    user.xp+=xp_gained
+    #update last_active
+    user.last_active=today
+    #persist
+
     db.commit()
     db.refresh(user)
 
     db.close()
-    return {"status": "Mission completed","xp": user.xp, "mission_id":mission.id}
+    return {"status": "Mission completed","xp": user.xp, "mission_id":mission.id,"xp_gained":xp_gained,"total_xp":user.xp,"streak":user.streak}
