@@ -3,7 +3,7 @@ from app.db.database import engine
 from app.models.user import User, Base
 from app.models.mission import Mission
 from app.db.database import SessionLocal
-from datetime import date,timedelta
+from datetime import date,timedelta,datetime
 from pydantic import BaseModel
 app=FastAPI()
 
@@ -89,11 +89,11 @@ def complete_mission(mission_id:int):
     xp_gained=calculate_xp(user.streak)
     user.xp+=xp_gained
     #update last_active
-    user.last_active=today
+    user.last_active=datetime.utcnow()
     #persist
-
+    mission_id_value=mission.id# cache before closing db session
     db.commit()
     db.refresh(user)
 
     db.close()
-    return {"status": "Mission completed","xp": user.xp, "mission_id":mission.id,"xp_gained":xp_gained,"total_xp":user.xp,"streak":user.streak}
+    return {"status": "Mission completed","xp": user.xp, "mission_id":mission_id_value,"xp_gained":xp_gained,"total_xp":user.xp,"streak":user.streak}
