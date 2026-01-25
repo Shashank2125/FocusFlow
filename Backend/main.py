@@ -16,10 +16,10 @@ def calculate_xp(streak:int)->int:
     base=50
     bonus=min(streak*10,200)
     return base+bonus
-@app.post("/missions/update-status")
-def update_status(data:MissionUpdate):
-    print("MISSION UPDATE:", data)
-    return{"message":"status saved"}
+#@app.post("/missions/update-status")
+#def update_status(data:MissionUpdate):
+    #print("MISSION UPDATE:", data)
+    #return{"message":"status saved"}
 
 Base.metadata.create_all(bind=engine)
 @app.get("/")
@@ -97,3 +97,28 @@ def complete_mission(mission_id:int):
 
     db.close()
     return {"status": "Mission completed","xp": user.xp, "mission_id":mission_id_value,"xp_gained":xp_gained,"total_xp":user.xp,"streak":user.streak}
+@app.get("/users/daily-check/{user_id}")
+def daily_check(user_id:int):
+    db=SessionLocal()
+    today=date.today()
+    user=db.query(User).filter(User.id==user_id).first()
+    if not user:
+        db.close()
+        return{"error":"User not found"}
+    penalty_applied=False
+    if user.last_active:
+        day_missed=(today-user.last_active.date()).days
+        if day_missed>1:
+            user.streak=0
+            user.xp=max(user.xp-100,0)
+            penalty_applied=True
+            db.commit()
+    #cache value before commit
+    xp_value=user.xp
+    streak_value=user.streak
+    db.close()
+    return{
+        "penalty":penalty_applied,
+        "xp":xp_value,
+        "streak":streak_value
+    }
