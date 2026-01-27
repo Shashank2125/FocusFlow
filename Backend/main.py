@@ -16,6 +16,25 @@ def calculate_xp(streak:int)->int:
     base=50
     bonus=min(streak*10,200)
     return base+bonus
+def calculate_rank(xp:int)->str:
+    if xp>=6000:
+        return "A"
+    elif xp>=3000:
+        return "B"
+    elif xp>=1500:
+        return "C"
+    elif xp>=500:
+        return "D"
+    return "E"
+#rank multiplier
+def rank_multiplier(rank:str)->float:
+    return{
+        "E":1.0,
+        "D":1.1,
+        "C":1.25,
+        "B":1.5,
+        "A":2   
+    }.get(rank,1.0)
 #@app.post("/missions/update-status")
 #def update_status(data:MissionUpdate):
     #print("MISSION UPDATE:", data)
@@ -85,9 +104,15 @@ def complete_mission(mission_id:int):
             user.streak=1
     else:
         user.streak=1
-    #xp curve
-    xp_gained=calculate_xp(user.streak)
+    #xp increase according to the rank using multiplier
+    base_xp=calculate_xp(user.streak)
+    multiplier=rank_multiplier(user.rank)
+    xp_gained=int(base_xp*multiplier)
     user.xp+=xp_gained
+    #rank update
+    new_rank=calculate_rank(user.xp)
+    rank_changed=new_rank!=user.rank
+    user.rank=new_rank
     #update last_active
     user.last_active=datetime.utcnow()
     #persist
@@ -96,7 +121,7 @@ def complete_mission(mission_id:int):
     db.refresh(user)
 
     db.close()
-    return {"status": "Mission completed","xp": user.xp, "mission_id":mission_id_value,"xp_gained":xp_gained,"total_xp":user.xp,"streak":user.streak}
+    return {"status": "Mission completed", "mission_id":mission_id_value,"xp_gained":xp_gained,"base_xp":base_xp,"multiplier":multiplier,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id:int):
     db=SessionLocal()
