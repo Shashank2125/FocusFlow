@@ -35,6 +35,14 @@ def rank_multiplier(rank:str)->float:
         "B":1.5,
         "A":2   
     }.get(rank,1.0)
+def rank_penalty(rank:str)->int:
+    return{
+        "E":100,
+        "D":150,
+        "C":250,
+        "B":400,
+        "A":600
+    }.get(rank,100)
 #@app.post("/missions/update-status")
 #def update_status(data:MissionUpdate):
     #print("MISSION UPDATE:", data)
@@ -133,9 +141,11 @@ def daily_check(user_id:int):
     penalty_applied=False
     if user.last_active:
         day_missed=(today-user.last_active.date()).days
+        #apply penalty based on user rank
         if day_missed>1:
+            penalty_xp=rank_penalty(user.rank)
             user.streak=0
-            user.xp=max(user.xp-100,0)
+            user.xp=max(user.xp-penalty_xp,0)
             penalty_applied=True
             db.commit()
     #cache value before commit
@@ -145,5 +155,7 @@ def daily_check(user_id:int):
     return{
         "penalty":penalty_applied,
         "xp":xp_value,
-        "streak":streak_value
+        "streak":streak_value,
+        "penalty_xp":penalty_xp if penalty_applied else 0,
+        "rank":user.rank
     }
