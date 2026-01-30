@@ -41,6 +41,12 @@ def difficulty_multiplier(difficulty:str)->float:
         "NORMAL":1.25,
         "HARD":1.5
     }.get(difficulty,1.0)
+def normalize_difficulty(difficulty):
+    if difficulty is None:
+        return "NORMAL"
+    if hasattr(difficulty,"value"):
+        return difficulty.value
+    return difficulty
 def rank_penalty(rank:str)->int:
     return{
         "E":100,
@@ -132,11 +138,12 @@ def complete_mission(mission_id:int):
     user.last_active=datetime.utcnow()
     #persist
     mission_id_value=mission.id# cache before closing db session
+    difficulty_value=normalize_difficulty(mission.difficulty)
     db.commit()
     db.refresh(user)
 
     db.close()
-    return {"status": "Mission completed", "mission_id":mission_id_value,"base_xp":base_xp,"xp_gained":xp_gained,"base_xp":base_xp,"rank_multiplier":rank_mult,"difficulty":mission.difficulty.value,"difficulty_multiplier":difficulty_mult,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
+    return {"status": "Mission completed", "mission_id":mission_id_value,"base_xp":base_xp,"xp_gained":xp_gained,"base_xp":base_xp,"rank_multiplier":rank_mult,"difficulty":difficulty_value,"difficulty_multiplier":difficulty_mult,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id:int):
     db=SessionLocal()
