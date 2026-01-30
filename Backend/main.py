@@ -35,6 +35,12 @@ def rank_multiplier(rank:str)->float:
         "B":1.5,
         "A":2   
     }.get(rank,1.0)
+def difficulty_multiplier(difficulty:str)->float:
+    return{
+        "EASY":1.0,
+        "NORMAL":1.25,
+        "HARD":1.5
+    }.get(difficulty,1.0)
 def rank_penalty(rank:str)->int:
     return{
         "E":100,
@@ -114,8 +120,9 @@ def complete_mission(mission_id:int):
         user.streak=1
     #xp increase according to the rank using multiplier
     base_xp=calculate_xp(user.streak)
-    multiplier=rank_multiplier(user.rank)
-    xp_gained=int(base_xp*multiplier)
+    rank_mult=rank_multiplier(user.rank)
+    difficulty_mult=difficulty_multiplier(mission.difficulty.value)
+    xp_gained=int(base_xp*rank_mult*difficulty_mult)
     user.xp+=xp_gained
     #rank update
     new_rank=calculate_rank(user.xp)
@@ -129,7 +136,7 @@ def complete_mission(mission_id:int):
     db.refresh(user)
 
     db.close()
-    return {"status": "Mission completed", "mission_id":mission_id_value,"xp_gained":xp_gained,"base_xp":base_xp,"multiplier":multiplier,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
+    return {"status": "Mission completed", "mission_id":mission_id_value,"base_xp":base_xp,"xp_gained":xp_gained,"base_xp":base_xp,"rank_multiplier":rank_mult,"difficulty":mission.difficulty.value,"difficulty_multiplier":difficulty_mult,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id:int):
     db=SessionLocal()
