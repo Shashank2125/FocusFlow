@@ -5,6 +5,7 @@ from app.models.mission import Mission
 from app.db.database import SessionLocal
 from datetime import date,timedelta,datetime
 from pydantic import BaseModel
+from services.xp_service import calculate_xp,calculate_rank
 app=FastAPI()
 
 
@@ -12,42 +13,21 @@ class MissionUpdate(BaseModel):
     missionID:int
     date:str
     status:str
-def calculate_xp(streak:int)->int:
-    base=50
-    bonus=min(streak*10,200)
-    return base+bonus
-def calculate_rank(xp:int)->str:
-    if xp>=6000:
-        return "A"
-    elif xp>=3000:
-        return "B"
-    elif xp>=1500:
-        return "C"
-    elif xp>=500:
-        return "D"
-    return "E"
-#rank multiplier
-def rank_multiplier(rank:str)->float:
-    return{
-        "E":1.0,
-        "D":1.1,
-        "C":1.25,
-        "B":1.5,
-        "A":2   
-    }.get(rank,1.0)
-def difficulty_multiplier(difficulty:str)->float:
-    return{
-        "EASY":1.0,
-        "NORMAL":1.25,
-        "HARD":1.5
-    }.get(difficulty,1.0)
-def normalize_difficulty(difficulty):
-    if difficulty is None:
-        return "NORMAL"
-    if hasattr(difficulty,"value"):
-        return difficulty.value
-    return difficulty
+
+
+
+
+
 def rank_penalty(rank:str)->int:
+    """
+    Map a rank letter to its associated XP penalty.
+    
+    Parameters:
+    	rank (str): Rank letter ('A' through 'E').
+    
+    Returns:
+    	penalty_xp (int): Penalty XP for the given rank: A=600, B=400, C=250, D=150, E=100. Returns 100 if the rank is unrecognized.
+    """
     return{
         "E":100,
         "D":150,
@@ -76,6 +56,15 @@ def create_user(username: str):
     return {"id": user.id, "username": user.username}
 @app.post("/missions/today/{user_id}")
 def get_or_create_today_mission(user_id:int):
+    """
+    Retrieve the user's mission for today or create a new one if none exists.
+    
+    Parameters:
+        user_id (int): The database ID of the user.
+    
+    Returns:
+        Mission: The existing or newly created Mission for today's date.
+    """
     db=SessionLocal()
 
     today=date.today()
@@ -97,55 +86,105 @@ def get_or_create_today_mission(user_id:int):
     return mission
 #business logic
 @app.post("/missions/complete/{mission_id}")
-def complete_mission(mission_id:int):
-    db=SessionLocal()
-    today=date.today()
-    #fetch mission
-    mission=db.query(Mission).filter(Mission.id==mission_id).first()
+def complete_mission(mission_id: int):
+    """
+    Complete a mission, apply XP and streak updates to the associated user, and persist changes to the database.
+    
+    On success, marks the mission as completed, updates the user's streak, increments the user's XP using the XP service, recalculates and updates the user's rank, sets the user's last_active timestamp to now, and commits these changes.
+    
+    Returns:
+        dict: On error, a dictionary with an `"error"` message describing the failure (e.g., mission not found, mission already completed, or user not found).
+        On success, a dictionary containing:
+            - "status" (str): Confirmation message "Mission completed".
+            - "mission_id" (int): ID of the completed mission.
+            - ...fields returned by the XP service (merged from `xp_result`, e.g., `"xp_gained"` and any XP breakdown).
+            - "total_xp" (int): User's XP after applying the gained XP.
+            - "streak" (int): User's current streak after the update.
+            - "rank" (str): User's updated rank after recalculation.
+            - "rank_changed" (bool): `true` if the user's rank changed as a result of this completion, `false` otherwise.
+    """
+    db = SessionLocal()
+    today = date.today()
+
+    # Fetch mission
+    mission = db.query(Mission).filter(Mission.id == mission_id).first()
     if not mission:
         db.close()
-        return{"error": "Mission not found"}
+        return {"error": "Mission not found"}
     if mission.completed:
         db.close()
-        return{"error": "Mission already completed"}
-    #mark mission completed
-    mission.completed=True
-    #fetch user
-    user=db.query(User).filter(User.id==mission.user_id).first()
+        return {"error": "Mission already completed"}
+
+    mission.completed = True
+
+    # Fetch user
+    user = db.query(User).filter(User.id == mission.user_id).first()
     if not user:
         db.close()
-        return {"error":"User not found"}
-    #streak logic
+        return {"error": "User not found"}
+
+    # Streak logic
     if user.last_active:
-        last_day=user.last_active.date()
-        if last_day==today-timedelta(days=1):
-            user.streak+=1
+        last_day = user.last_active.date()
+        if last_day == today - timedelta(days=1):
+            user.streak += 1
         else:
-            user.streak=1
+            user.streak = 1
     else:
-        user.streak=1
-    #xp increase according to the rank using multiplier
-    base_xp=calculate_xp(user.streak)
-    rank_mult=rank_multiplier(user.rank)
-    difficulty_mult=difficulty_multiplier(mission.difficulty.value)
-    xp_gained=int(base_xp*rank_mult*difficulty_mult)
-    user.xp+=xp_gained
-    #rank update
-    new_rank=calculate_rank(user.xp)
-    rank_changed=new_rank!=user.rank
-    user.rank=new_rank
-    #update last_active
-    user.last_active=datetime.utcnow()
-    #persist
-    mission_id_value=mission.id# cache before closing db session
-    difficulty_value=normalize_difficulty(mission.difficulty)
+        user.streak = 1
+
+    # XP SERVICE (single source of truth)
+    xp_result = calculate_xp(
+        streak=user.streak,
+        rank=user.rank,
+        difficulty=mission.difficulty
+    )
+
+    user.xp += xp_result["xp_gained"]
+
+    # Rank update
+    new_rank = calculate_rank(user.xp)
+    rank_changed = new_rank != user.rank
+    user.rank = new_rank
+
+    # Update last active
+    user.last_active = datetime.utcnow()
+
+    # Cache before commit
+    mission_id_value = mission.id
+
     db.commit()
     db.refresh(user)
-
     db.close()
-    return {"status": "Mission completed", "mission_id":mission_id_value,"base_xp":base_xp,"xp_gained":xp_gained,"base_xp":base_xp,"rank_multiplier":rank_mult,"difficulty":difficulty_value,"difficulty_multiplier":difficulty_mult,"total_xp":user.xp,"streak":user.streak,"rank":user.rank,"rank_changed":rank_changed}
+
+    return {
+        "status": "Mission completed",
+        "mission_id": mission_id_value,
+        **xp_result,
+        "total_xp": user.xp,
+        "streak": user.streak,
+        "rank": user.rank,
+        "rank_changed": rank_changed
+    }
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id:int):
+    """
+    Check a user's daily activity and apply a rank-based penalty when the user has missed more than one day.
+    
+    If the user has a recorded last_active date and the gap to today is greater than one day, this resets the user's streak to 0 and deducts XP using the rank_penalty mapping, never letting XP drop below 0. If the user does not exist, an error mapping is returned.
+    
+    Parameters:
+        user_id (int): The database ID of the user to perform the daily check for.
+    
+    Returns:
+        dict: On success, a mapping with:
+            - "penalty" (bool): True if a penalty was applied, False otherwise.
+            - "xp" (int): The user's current XP after any penalty.
+            - "streak" (int): The user's current streak after any reset.
+            - "penalty_xp" (int): The XP amount deducted due to the penalty (0 if none).
+            - "rank" (str): The user's current rank string.
+        dict: If the user is not found, returns {"error": "User not found"}.
+    """
     db=SessionLocal()
     today=date.today()
     user=db.query(User).filter(User.id==user_id).first()
@@ -153,6 +192,7 @@ def daily_check(user_id:int):
         db.close()
         return{"error":"User not found"}
     penalty_applied=False
+    penalty_xp=0
     if user.last_active:
         day_missed=(today-user.last_active.date()).days
         #apply penalty based on user rank
@@ -170,6 +210,6 @@ def daily_check(user_id:int):
         "penalty":penalty_applied,
         "xp":xp_value,
         "streak":streak_value,
-        "penalty_xp":penalty_xp if penalty_applied else 0,
+        "penalty_xp":penalty_xp,
         "rank":user.rank
     }
