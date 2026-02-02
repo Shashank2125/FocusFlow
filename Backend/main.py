@@ -19,6 +19,15 @@ class MissionUpdate(BaseModel):
 
 
 def rank_penalty(rank:str)->int:
+    """
+    Map a rank letter to its associated XP penalty.
+    
+    Parameters:
+    	rank (str): Rank letter ('A' through 'E').
+    
+    Returns:
+    	penalty_xp (int): Penalty XP for the given rank: A=600, B=400, C=250, D=150, E=100. Returns 100 if the rank is unrecognized.
+    """
     return{
         "E":100,
         "D":150,
@@ -47,6 +56,15 @@ def create_user(username: str):
     return {"id": user.id, "username": user.username}
 @app.post("/missions/today/{user_id}")
 def get_or_create_today_mission(user_id:int):
+    """
+    Retrieve the user's mission for today or create a new one if none exists.
+    
+    Parameters:
+        user_id (int): The database ID of the user.
+    
+    Returns:
+        Mission: The existing or newly created Mission for today's date.
+    """
     db=SessionLocal()
 
     today=date.today()
@@ -69,6 +87,22 @@ def get_or_create_today_mission(user_id:int):
 #business logic
 @app.post("/missions/complete/{mission_id}")
 def complete_mission(mission_id: int):
+    """
+    Complete a mission, apply XP and streak updates to the associated user, and persist changes to the database.
+    
+    On success, marks the mission as completed, updates the user's streak, increments the user's XP using the XP service, recalculates and updates the user's rank, sets the user's last_active timestamp to now, and commits these changes.
+    
+    Returns:
+        dict: On error, a dictionary with an `"error"` message describing the failure (e.g., mission not found, mission already completed, or user not found).
+        On success, a dictionary containing:
+            - "status" (str): Confirmation message "Mission completed".
+            - "mission_id" (int): ID of the completed mission.
+            - ...fields returned by the XP service (merged from `xp_result`, e.g., `"xp_gained"` and any XP breakdown).
+            - "total_xp" (int): User's XP after applying the gained XP.
+            - "streak" (int): User's current streak after the update.
+            - "rank" (str): User's updated rank after recalculation.
+            - "rank_changed" (bool): `true` if the user's rank changed as a result of this completion, `false` otherwise.
+    """
     db = SessionLocal()
     today = date.today()
 
@@ -134,6 +168,23 @@ def complete_mission(mission_id: int):
     }
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id:int):
+    """
+    Check a user's daily activity and apply a rank-based penalty when the user has missed more than one day.
+    
+    If the user has a recorded last_active date and the gap to today is greater than one day, this resets the user's streak to 0 and deducts XP using the rank_penalty mapping, never letting XP drop below 0. If the user does not exist, an error mapping is returned.
+    
+    Parameters:
+        user_id (int): The database ID of the user to perform the daily check for.
+    
+    Returns:
+        dict: On success, a mapping with:
+            - "penalty" (bool): True if a penalty was applied, False otherwise.
+            - "xp" (int): The user's current XP after any penalty.
+            - "streak" (int): The user's current streak after any reset.
+            - "penalty_xp" (int): The XP amount deducted due to the penalty (0 if none).
+            - "rank" (str): The user's current rank string.
+        dict: If the user is not found, returns {"error": "User not found"}.
+    """
     db=SessionLocal()
     today=date.today()
     user=db.query(User).filter(User.id==user_id).first()
