@@ -1,12 +1,20 @@
 # services/xp_service.py
 
 def calculate_base_xp(streak: int) -> int:
+    """
+    Compute base XP from streak.
+    Base = 50
+    Bonus = streak * 10 (capped at 200)
+    """
     base = 50
     bonus = min(streak * 10, 200)
     return base + bonus
 
 
 def rank_multiplier(rank: str) -> float:
+    """
+    Rank-based XP multiplier.
+    """
     return {
         "E": 1.0,
         "D": 1.1,
@@ -17,6 +25,9 @@ def rank_multiplier(rank: str) -> float:
 
 
 def difficulty_multiplier(difficulty: str) -> float:
+    """
+    Difficulty-based XP multiplier.
+    """
     return {
         "EASY": 1.0,
         "NORMAL": 1.25,
@@ -25,6 +36,9 @@ def difficulty_multiplier(difficulty: str) -> float:
 
 
 def calculate_rank(xp: int) -> str:
+    """
+    Determine rank from total XP.
+    """
     if xp >= 6000:
         return "A"
     elif xp >= 3000:
@@ -37,6 +51,9 @@ def calculate_rank(xp: int) -> str:
 
 
 def normalize_difficulty(difficulty):
+    """
+    Normalize difficulty enum / string / None.
+    """
     if difficulty is None:
         return "NORMAL"
     if hasattr(difficulty, "value"):
@@ -45,6 +62,9 @@ def normalize_difficulty(difficulty):
 
 
 def calculate_xp(streak: int, rank: str, difficulty) -> dict:
+    """
+    Single source of truth for XP calculation.
+    """
     base_xp = calculate_base_xp(streak)
     r_mult = rank_multiplier(rank)
     d_value = normalize_difficulty(difficulty)
@@ -59,7 +79,12 @@ def calculate_xp(streak: int, rank: str, difficulty) -> dict:
         "difficulty": d_value,
         "difficulty_multiplier": d_mult
     }
+
+
 def is_difficulty_allowed(rank: str, difficulty: str) -> bool:
+    """
+    Enforce difficulty locks by rank.
+    """
     rank_limits = {
         "E": ["EASY", "NORMAL"],
         "D": ["EASY", "NORMAL"],
@@ -70,4 +95,3 @@ def is_difficulty_allowed(rank: str, difficulty: str) -> bool:
 
     allowed = rank_limits.get(rank, ["EASY"])
     return difficulty in allowed
-

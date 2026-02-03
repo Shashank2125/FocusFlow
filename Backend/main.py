@@ -1,38 +1,40 @@
 from fastapi import FastAPI
-from app.db.database import engine
+from datetime import date, timedelta, datetime
+from pydantic import BaseModel
+
+from app.db.database import engine, SessionLocal
 from app.models.user import User, Base
 from app.models.mission import Mission
-from app.db.database import SessionLocal
-from datetime import date,timedelta,datetime
-from pydantic import BaseModel
-from services.xp_service import calculate_xp,calculate_rank,is_difficulty_allowed
-from services.penalty_service import rank_penalty, should_apply_penalty
 
-app=FastAPI()
+from services.xp_service import (
+    calculate_xp,
+    calculate_rank,
+    is_difficulty_allowed
+)
+from services.penalty_service import (
+    rank_penalty,
+    should_apply_penalty
+)
+
+app = FastAPI()
 
 
 class MissionUpdate(BaseModel):
-    missionID:int
-    date:str
-    status:str
+    missionID: int
+    date: str
+    status: str
 
-
-
-
-
-
-#@app.post("/missions/update-status")
-#def update_status(data:MissionUpdate):
-    #print("MISSION UPDATE:", data)
-    #return{"message":"status saved"}
 
 Base.metadata.create_all(bind=engine)
+
+
 @app.get("/")
 def root():
-    return {"status":"System Online"}
+    return {"status": "System Online"}
+
+
 @app.post("/users/{username}")
 def create_user(username: str):
-    from app.db.database import SessionLocal
     db = SessionLocal()
     user = User(username=username)
     db.add(user)
@@ -40,19 +42,23 @@ def create_user(username: str):
     db.refresh(user)
     db.close()
     return {"id": user.id, "username": user.username}
-@app.post("/missions/today/{user_id}")
-def get_or_create_today_mission(user_id:int):
-    db=SessionLocal()
 
-    today=date.today()
-    mission=db.query(Mission).filter(
-        Mission.user_id==user_id,
-        Mission.mission_date==today
+
+@app.post("/missions/today/{user_id}")
+def get_or_create_today_mission(user_id: int):
+    db = SessionLocal()
+    today = date.today()
+
+    mission = db.query(Mission).filter(
+        Mission.user_id == user_id,
+        Mission.mission_date == today
     ).first()
+
     if mission:
         db.close()
         return mission
-    mission=Mission(
+
+    mission = Mission(
         user_id=user_id,
         title="Complete your daily focus session"
     )
@@ -61,28 +67,27 @@ def get_or_create_today_mission(user_id:int):
     db.refresh(mission)
     db.close()
     return mission
-#business logic
+
+
 @app.post("/missions/complete/{mission_id}")
 def complete_mission(mission_id: int):
     db = SessionLocal()
     today = date.today()
 
-    # Fetch mission
     mission = db.query(Mission).filter(Mission.id == mission_id).first()
     if not mission:
         db.close()
         return {"error": "Mission not found"}
+
     if mission.completed:
         db.close()
         return {"error": "Mission already completed"}
 
-    # Fetch user
     user = db.query(User).filter(User.id == mission.user_id).first()
     if not user:
         db.close()
         return {"error": "User not found"}
 
-    # 🔒 Difficulty enforcement (DAY 11 CORE)
     difficulty_value = (
         mission.difficulty.value
         if hasattr(mission.difficulty, "value")
@@ -97,20 +102,13 @@ def complete_mission(mission_id: int):
             "difficulty": difficulty_value
         }
 
-    # Mark mission completed AFTER validation
     mission.completed = True
 
-    # Streak logic
-    if user.last_active:
-        last_day = user.last_active.date()
-        if last_day == today - timedelta(days=1):
-            user.streak += 1
-        else:
-            user.streak = 1
+    if user.last_active and user.last_active.date() == today - timedelta(days=1):
+        user.streak += 1
     else:
         user.streak = 1
 
-    # XP calculation (service)
     xp_result = calculate_xp(
         streak=user.streak,
         rank=user.rank,
@@ -119,14 +117,11 @@ def complete_mission(mission_id: int):
 
     user.xp += xp_result["xp_gained"]
 
-    # Rank update
     new_rank = calculate_rank(user.xp)
     rank_changed = new_rank != user.rank
     user.rank = new_rank
 
     user.last_active = datetime.utcnow()
-
-    mission_id_value = mission.id
 
     db.commit()
     db.refresh(user)
@@ -134,13 +129,14 @@ def complete_mission(mission_id: int):
 
     return {
         "status": "Mission completed",
-        "mission_id": mission_id_value,
+        "mission_id": mission_id,
         **xp_result,
         "total_xp": user.xp,
         "streak": user.streak,
         "rank": user.rank,
         "rank_changed": rank_changed
     }
+
 
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id: int):
@@ -157,38 +153,19 @@ def daily_check(user_id: int):
 
     if should_apply_penalty(user.last_active, today):
         penalty_xp = rank_penalty(user.rank)
-        user.streak = 0
         user.xp = max(user.xp - penalty_xp, 0)
+        user.streak = 0
         user.last_active = datetime.utcnow()
         penalty_applied = True
         db.commit()
 
     result = {
         "penalty": penalty_applied,
+        "penalty_xp": penalty_xp,
         "xp": user.xp,
         "streak": user.streak,
-        "penalty_xp": penalty_xp,
         "rank": user.rank
     }
 
     db.close()
     return result
-
-#getting profile to display on the unity
-@app.get("/profile/{user_id}")
-def get_profile(user_id:int):
-    db=SessionLocal()
-    user=db.query(User).filter(User.id==user_id).first()
-    if not user:
-        db.close()
-        return {"error":"User not Found"}
-    profile={
-        "id":user.id,
-        "username":user.username,
-        "xp":user.xp,
-        "rank":user.rank,
-        "streak":user.streak,
-        "last_active":user.last_active
-    }
-    db.close()
-    return profile
