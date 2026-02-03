@@ -5,7 +5,9 @@ from app.models.mission import Mission
 from app.db.database import SessionLocal
 from datetime import date,timedelta,datetime
 from pydantic import BaseModel
-from services.xp_service import calculate_xp,calculate_rank
+from services.xp_service import calculate_xp,calculate_rank,is_difficulty_allowed
+from services.penalty_service import rank_penalty, should_apply_penalty
+
 app=FastAPI()
 
 
@@ -18,14 +20,7 @@ class MissionUpdate(BaseModel):
 
 
 
-def rank_penalty(rank:str)->int:
-    return{
-        "E":100,
-        "D":150,
-        "C":250,
-        "B":400,
-        "A":600
-    }.get(rank,100)
+
 #@app.post("/missions/update-status")
 #def update_status(data:MissionUpdate):
     #print("MISSION UPDATE:", data)
@@ -81,13 +76,29 @@ def complete_mission(mission_id: int):
         db.close()
         return {"error": "Mission already completed"}
 
-    mission.completed = True
-
     # Fetch user
     user = db.query(User).filter(User.id == mission.user_id).first()
     if not user:
         db.close()
         return {"error": "User not found"}
+
+    # 🔒 Difficulty enforcement (DAY 11 CORE)
+    difficulty_value = (
+        mission.difficulty.value
+        if hasattr(mission.difficulty, "value")
+        else mission.difficulty
+    )
+
+    if not is_difficulty_allowed(user.rank, difficulty_value):
+        db.close()
+        return {
+            "error": "Difficulty locked",
+            "current_rank": user.rank,
+            "difficulty": difficulty_value
+        }
+
+    # Mark mission completed AFTER validation
+    mission.completed = True
 
     # Streak logic
     if user.last_active:
@@ -99,7 +110,7 @@ def complete_mission(mission_id: int):
     else:
         user.streak = 1
 
-    # XP SERVICE (single source of truth)
+    # XP calculation (service)
     xp_result = calculate_xp(
         streak=user.streak,
         rank=user.rank,
@@ -113,10 +124,8 @@ def complete_mission(mission_id: int):
     rank_changed = new_rank != user.rank
     user.rank = new_rank
 
-    # Update last active
     user.last_active = datetime.utcnow()
 
-    # Cache before commit
     mission_id_value = mission.id
 
     db.commit()
@@ -132,33 +141,54 @@ def complete_mission(mission_id: int):
         "rank": user.rank,
         "rank_changed": rank_changed
     }
+
 @app.get("/users/daily-check/{user_id}")
-def daily_check(user_id:int):
+def daily_check(user_id: int):
+    db = SessionLocal()
+    today = date.today()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        db.close()
+        return {"error": "User not found"}
+
+    penalty_applied = False
+    penalty_xp = 0
+
+    if should_apply_penalty(user.last_active, today):
+        penalty_xp = rank_penalty(user.rank)
+        user.streak = 0
+        user.xp = max(user.xp - penalty_xp, 0)
+        user.last_active = datetime.utcnow()
+        penalty_applied = True
+        db.commit()
+
+    result = {
+        "penalty": penalty_applied,
+        "xp": user.xp,
+        "streak": user.streak,
+        "penalty_xp": penalty_xp,
+        "rank": user.rank
+    }
+
+    db.close()
+    return result
+
+#getting profile to display on the unity
+@app.get("/profile/{user_id}")
+def get_profile(user_id:int):
     db=SessionLocal()
-    today=date.today()
     user=db.query(User).filter(User.id==user_id).first()
     if not user:
         db.close()
-        return{"error":"User not found"}
-    penalty_applied=False
-    penalty_xp=0
-    if user.last_active:
-        day_missed=(today-user.last_active.date()).days
-        #apply penalty based on user rank
-        if day_missed>1:
-            penalty_xp=rank_penalty(user.rank)
-            user.streak=0
-            user.xp=max(user.xp-penalty_xp,0)
-            penalty_applied=True
-            db.commit()
-    #cache value before commit
-    xp_value=user.xp
-    streak_value=user.streak
-    db.close()
-    return{
-        "penalty":penalty_applied,
-        "xp":xp_value,
-        "streak":streak_value,
-        "penalty_xp":penalty_xp,
-        "rank":user.rank
+        return {"error":"User not Found"}
+    profile={
+        "id":user.id,
+        "username":user.username,
+        "xp":user.xp,
+        "rank":user.rank,
+        "streak":user.streak,
+        "last_active":user.last_active
     }
+    db.close()
+    return profile

@@ -59,3 +59,15 @@ def calculate_xp(streak: int, rank: str, difficulty) -> dict:
         "difficulty": d_value,
         "difficulty_multiplier": d_mult
     }
+def is_difficulty_allowed(rank: str, difficulty: str) -> bool:
+    rank_limits = {
+        "E": ["EASY", "NORMAL"],
+        "D": ["EASY", "NORMAL"],
+        "C": ["EASY", "NORMAL", "HARD"],
+        "B": ["EASY", "NORMAL", "HARD"],
+        "A": ["EASY", "NORMAL", "HARD"],
+    }
+
+    allowed = rank_limits.get(rank, ["EASY"])
+    return difficulty in allowed
+
