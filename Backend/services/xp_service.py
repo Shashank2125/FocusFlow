@@ -95,3 +95,38 @@ def is_difficulty_allowed(rank: str, difficulty: str) -> bool:
 
     allowed = rank_limits.get(rank, ["EASY"])
     return difficulty in allowed
+def rank_threshold(rank:str)->int:
+    return{
+        "E":500,
+        "D":1500,
+        "C":3000,
+        "B":6000,
+        "A":None#max rank
+    }.get(rank)
+def rank_progress(xp:int,rank:str)->dict:
+    next_threshold=rank_threshold(rank)
+    if next_threshold is None:
+        return{
+            "progress": 100,
+            "xp_remaining":0,
+            "next_rank":None
+        }
+    base_threshold={
+        "E":0,
+        "D":500,
+        "C":1500,
+        "B":3000
+    }.get(rank,0)
+    gained=xp-base_threshold
+    total=next_threshold-base_threshold
+    return{
+        "progress":int((gained/total)*100),
+        "xp_remaining":max(next_threshold-xp,0),
+        "next_rank":{
+            "E":"D",
+            "D":"C",
+            "C":"B",
+            "B":"A"
+        }[rank]
+    }
+

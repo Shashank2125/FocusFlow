@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.db.database import engine, SessionLocal
 from app.models.user import User, Base
 from app.models.mission import Mission
+from services.xp_service import rank_progress
 
 from services.xp_service import (
     calculate_xp,
@@ -116,6 +117,11 @@ def complete_mission(mission_id: int):
     )
 
     user.xp += xp_result["xp_gained"]
+    # Rank update (authoritative)
+    new_rank = calculate_rank(user.xp)
+    rank_changed = new_rank != user.rank
+    user.rank = new_rank
+
 
     new_rank = calculate_rank(user.xp)
     rank_changed = new_rank != user.rank
@@ -169,3 +175,25 @@ def daily_check(user_id: int):
 
     db.close()
     return result
+@app.get("/profile/{user_id}")
+def get_profile(user_id: int):
+    db = SessionLocal()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        db.close()
+        return {"error": "User not found"}
+
+    profile = {
+        "id": user.id,
+        "username": user.username,
+        "xp": user.xp,
+        "rank": user.rank,
+        "streak": user.streak,
+        "last_active": user.last_active,
+        "rank_progress": rank_progress(user.xp, user.rank)
+    }
+
+    db.close()
+    return profile
+
