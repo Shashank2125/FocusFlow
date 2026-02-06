@@ -116,16 +116,19 @@ def complete_mission(mission_id: int):
         difficulty=mission.difficulty
     )
 
-    user.xp += xp_result["xp_gained"]
-    # Rank update (authoritative)
+    # ── Rank evaluation (Day 14 logic) ──
+    old_rank = user.rank
     new_rank = calculate_rank(user.xp)
-    rank_changed = new_rank != user.rank
+
+    rank_changed = new_rank != old_rank
+    rank_up = (
+    old_rank != new_rank and
+    ["E", "D", "C", "B", "A"].index(new_rank) >
+    ["E", "D", "C", "B", "A"].index(old_rank)
+    )
+
     user.rank = new_rank
 
-
-    new_rank = calculate_rank(user.xp)
-    rank_changed = new_rank != user.rank
-    user.rank = new_rank
 
     user.last_active = datetime.utcnow()
 
@@ -140,7 +143,8 @@ def complete_mission(mission_id: int):
         "total_xp": user.xp,
         "streak": user.streak,
         "rank": user.rank,
-        "rank_changed": rank_changed
+        "rank_changed": rank_changed,
+        "rank_up":rank_up
     }
 
 
