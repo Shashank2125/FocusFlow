@@ -129,4 +129,13 @@ def rank_progress(xp:int,rank:str)->dict:
             "B":"A"
         }[rank]
     }
+def rank_up_reward(new_rank: str) -> dict:
+    rewards = {
+        "D": {"bonus_xp": 100, "unlock": "NORMAL"},
+        "C": {"bonus_xp": 200, "unlock": "HARD"},
+        "B": {"bonus_xp": 400, "unlock": "HARD"},
+        "A": {"bonus_xp": 800, "unlock": "ELITE"}
+    }
+    return rewards.get(new_rank, {"bonus_xp": 0, "unlock": None})
+
 

@@ -6,6 +6,8 @@ from app.db.database import engine, SessionLocal
 from app.models.user import User, Base
 from app.models.mission import Mission
 from services.xp_service import rank_progress
+from services.xp_service import rank_up_reward
+
 
 from services.xp_service import (
     calculate_xp,
@@ -103,34 +105,42 @@ def complete_mission(mission_id: int):
             "difficulty": difficulty_value
         }
 
+    # ✅ Complete mission
     mission.completed = True
 
+    # ✅ Streak logic
     if user.last_active and user.last_active.date() == today - timedelta(days=1):
         user.streak += 1
     else:
         user.streak = 1
 
+    # ✅ XP calculation
     xp_result = calculate_xp(
         streak=user.streak,
         rank=user.rank,
         difficulty=mission.difficulty
     )
+    user.xp += xp_result["xp_gained"]
 
-    # ── Rank evaluation (Day 14 logic) ──
+    # ✅ Rank evaluation (Day 14)
     old_rank = user.rank
     new_rank = calculate_rank(user.xp)
 
     rank_changed = new_rank != old_rank
     rank_up = (
-    old_rank != new_rank and
-    ["E", "D", "C", "B", "A"].index(new_rank) >
-    ["E", "D", "C", "B", "A"].index(old_rank)
+        rank_changed and
+        ["E", "D", "C", "B", "A"].index(new_rank) >
+        ["E", "D", "C", "B", "A"].index(old_rank)
     )
 
     user.rank = new_rank
-
-
     user.last_active = datetime.utcnow()
+    reward = {"bonus_xp": 0, "unlock": None}
+
+    if rank_up:
+        reward = rank_up_reward(new_rank)
+        user.xp += reward["bonus_xp"]
+
 
     db.commit()
     db.refresh(user)
@@ -144,8 +154,10 @@ def complete_mission(mission_id: int):
         "streak": user.streak,
         "rank": user.rank,
         "rank_changed": rank_changed,
-        "rank_up":rank_up
+        "rank_up": rank_up,
+        "rank_reward":reward
     }
+
 
 
 @app.get("/users/daily-check/{user_id}")
