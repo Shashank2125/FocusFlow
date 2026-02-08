@@ -137,5 +137,13 @@ def rank_up_reward(new_rank: str) -> dict:
         "A": {"bonus_xp": 800, "unlock": "ELITE"}
     }
     return rewards.get(new_rank, {"bonus_xp": 0, "unlock": None})
+def daily_xp_cap(rank:str)->int:
+    return{
+        "E":300,
+        "D":400,
+        "C":600,
+        "B":800,
+        "A":1000
+    }.get(rank, 300)
 
 

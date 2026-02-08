@@ -6,7 +6,7 @@ from app.db.database import engine, SessionLocal
 from app.models.user import User, Base
 from app.models.mission import Mission
 from services.xp_service import rank_progress
-from services.xp_service import rank_up_reward
+from services.xp_service import rank_up_reward,daily_xp_cap
 
 
 from services.xp_service import (
@@ -120,7 +120,16 @@ def complete_mission(mission_id: int):
         rank=user.rank,
         difficulty=mission.difficulty
     )
-    user.xp += xp_result["xp_gained"]
+    #infinite xp gain removal with introduction to CAP
+    cap=daily_xp_cap(user.rank)
+    #reset daily XP if new day
+    if user.last_xp_date!=today:
+        user.daily_xp=0
+        user.last_xp_date=today
+    available_xp=max(cap-user.daily_xp,0)
+    xp_awarded=min(xp_result["xp_gained"],available_xp)
+    user.xp+=xp_awarded
+    user.daily_xp+=xp_awarded
 
     # ✅ Rank evaluation (Day 14)
     old_rank = user.rank
@@ -137,9 +146,14 @@ def complete_mission(mission_id: int):
     user.last_active = datetime.utcnow()
     reward = {"bonus_xp": 0, "unlock": None}
 
+    bonus_xp = 0
+    reward = {"bonus_xp": 0, "unlock": None}
+
     if rank_up:
         reward = rank_up_reward(new_rank)
-        user.xp += reward["bonus_xp"]
+        bonus_xp = reward["bonus_xp"]
+        user.xp += bonus_xp
+
 
 
     db.commit()
@@ -155,8 +169,11 @@ def complete_mission(mission_id: int):
         "rank": user.rank,
         "rank_changed": rank_changed,
         "rank_up": rank_up,
-        "rank_reward":reward
-    }
+        "rank_reward":reward,
+        "daily_xp":user.daily_xp,
+        "daily_xp_cap":cap,
+        "xp_blocked":xp_result["xp_gained"]-xp_awarded
+    } 
 
 
 

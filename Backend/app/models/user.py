@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Date
 from app.db.database import Base
 from datetime import datetime
 
@@ -12,3 +12,5 @@ class User(Base):
     streak=Column(Integer,default=0)
     last_active = Column(DateTime, nullable=True) 
     created_at = Column(DateTime, default=datetime.utcnow)
+    daily_xp=Column(Integer,default=0)
+    last_xp_date=Column(Date,nullable=True)
