@@ -189,13 +189,22 @@ def daily_check(user_id: int):
 
     penalty_applied = False
     penalty_xp = 0
+    rank_dropped = False
+    old_rank = user.rank
 
     if should_apply_penalty(user.last_active, today):
         penalty_xp = rank_penalty(user.rank)
         user.xp = max(user.xp - penalty_xp, 0)
         user.streak = 0
-        user.last_active = datetime.utcnow()
         penalty_applied = True
+
+        # 🔽 Rank recalculation after penalty
+        new_rank = calculate_rank(user.xp)
+        if new_rank != old_rank:
+            rank_dropped = True
+            user.rank = new_rank
+
+        user.last_active = datetime.utcnow()
         db.commit()
 
     result = {
@@ -203,11 +212,13 @@ def daily_check(user_id: int):
         "penalty_xp": penalty_xp,
         "xp": user.xp,
         "streak": user.streak,
-        "rank": user.rank
+        "rank": user.rank,
+        "rank_dropped": rank_dropped
     }
 
     db.close()
     return result
+
 @app.get("/profile/{user_id}")
 def get_profile(user_id: int):
     db = SessionLocal()

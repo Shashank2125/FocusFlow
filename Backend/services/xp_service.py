@@ -145,5 +145,14 @@ def daily_xp_cap(rank:str)->int:
         "B":800,
         "A":1000
     }.get(rank, 300)
+def rank_threshold(rank: str) -> int:
+    return {
+        "E": 0,
+        "D": 500,
+        "C": 1500,
+        "B": 3000,
+        "A": 6000
+    }.get(rank, 0)
+
 
 
