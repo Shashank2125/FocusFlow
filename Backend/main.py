@@ -121,7 +121,8 @@ def complete_mission(mission_id: int):
         difficulty=mission.difficulty
     )
     #infinite xp gain removal with introduction to CAP
-    cap=daily_xp_cap(user.rank)
+    cap = daily_xp_cap(user.rank) or 0
+
     #reset daily XP if new day
     if user.last_xp_date!=today:
         user.daily_xp=0
@@ -240,4 +241,31 @@ def get_profile(user_id: int):
 
     db.close()
     return profile
+@app.get("/dashboard/{user_id}")
+def dashboard(user_id: int):
+    db = SessionLocal()
+    today = date.today()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        db.close()
+        return {"error": "User not found"}
+
+    cap = daily_xp_cap(user.rank)
+    remaining = max(cap - user.daily_xp, 0)
+
+    data = {
+        "xp": user.xp,
+        "rank": user.rank,
+        "streak": user.streak,
+        "daily_xp": user.daily_xp,
+        "daily_xp_cap": cap,
+        "xp_remaining_today": remaining,
+        "rank_progress": rank_progress(user.xp, user.rank),
+        "can_gain_xp_today": remaining > 0
+    }
+
+    db.close()
+    return data
+
 

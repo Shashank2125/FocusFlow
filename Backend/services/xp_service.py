@@ -103,32 +103,7 @@ def rank_threshold(rank:str)->int:
         "B":6000,
         "A":None#max rank
     }.get(rank)
-def rank_progress(xp:int,rank:str)->dict:
-    next_threshold=rank_threshold(rank)
-    if next_threshold is None:
-        return{
-            "progress": 100,
-            "xp_remaining":0,
-            "next_rank":None
-        }
-    base_threshold={
-        "E":0,
-        "D":500,
-        "C":1500,
-        "B":3000
-    }.get(rank,0)
-    gained=xp-base_threshold
-    total=next_threshold-base_threshold
-    return{
-        "progress":int((gained/total)*100),
-        "xp_remaining":max(next_threshold-xp,0),
-        "next_rank":{
-            "E":"D",
-            "D":"C",
-            "C":"B",
-            "B":"A"
-        }[rank]
-    }
+
 def rank_up_reward(new_rank: str) -> dict:
     rewards = {
         "D": {"bonus_xp": 100, "unlock": "NORMAL"},
@@ -145,14 +120,42 @@ def daily_xp_cap(rank:str)->int:
         "B":800,
         "A":1000
     }.get(rank, 300)
-def rank_threshold(rank: str) -> int:
+RANK_THRESHOLDS = {
+    "E": 0,
+    "D": 500,
+    "C": 1500,
+    "B": 3000,
+    "A": 6000
+}
+
+RANK_ORDER = ["E", "D", "C", "B", "A"]
+
+
+def rank_progress(xp: int, rank: str) -> dict:
+    if rank == "A":
+        return {
+            "progress": 100,
+            "xp_remaining": 0,
+            "next_rank": None
+        }
+
+    current_index = RANK_ORDER.index(rank)
+    next_rank = RANK_ORDER[current_index + 1]
+
+    base = RANK_THRESHOLDS[rank]
+    next_threshold = RANK_THRESHOLDS[next_rank]
+
+    total = next_threshold - base
+    gained = xp - base
+
+    progress = int((gained / total) * 100) if total > 0 else 0
+
     return {
-        "E": 0,
-        "D": 500,
-        "C": 1500,
-        "B": 3000,
-        "A": 6000
-    }.get(rank, 0)
+        "progress": min(max(progress, 0), 100),
+        "xp_remaining": max(next_threshold - xp, 0),
+        "next_rank": next_rank
+    }
+
 
 
 
