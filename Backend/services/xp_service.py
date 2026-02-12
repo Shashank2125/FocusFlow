@@ -70,8 +70,11 @@ def calculate_xp(streak: int, rank: str, difficulty) -> dict:
     d_value = normalize_difficulty(difficulty)
     d_mult = difficulty_multiplier(d_value)
 
-    xp_gained = int(base_xp * r_mult * d_mult)
+    #streak multiplier
+    phase_data=streak_phase(streak)
+    phase_mult=phase_data["multiplier"]
 
+    xp_gained = int(base_xp * r_mult * d_mult*phase_mult)
     return {
         "xp_gained": xp_gained,
         "base_xp": base_xp,
@@ -155,6 +158,15 @@ def rank_progress(xp: int, rank: str) -> dict:
         "xp_remaining": max(next_threshold - xp, 0),
         "next_rank": next_rank
     }
+def streak_phase(streak: int) -> dict:
+    if streak >= 15:
+        return {"phase": "Discipline Mode", "multiplier": 1.3}
+    elif streak >= 8:
+        return {"phase": "Flow State", "multiplier": 1.2}
+    elif streak >= 4:
+        return {"phase": "Momentum", "multiplier": 1.1}
+    return {"phase": "Ignition", "multiplier": 1.0}
+
 
 
 
