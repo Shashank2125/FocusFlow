@@ -7,6 +7,7 @@ from app.models.user import User, Base
 from app.models.mission import Mission
 from services.xp_service import rank_progress
 from services.xp_service import rank_up_reward,daily_xp_cap
+from services.game_engine import process_mission_completion
 
 
 from services.xp_service import (
@@ -105,56 +106,9 @@ def complete_mission(mission_id: int):
             "difficulty": difficulty_value
         }
 
-    # ✅ Complete mission
-    mission.completed = True
+    result = process_mission_completion(user, mission)
 
-    # ✅ Streak logic
-    if user.last_active and user.last_active.date() == today - timedelta(days=1):
-        user.streak += 1
-    else:
-        user.streak = 1
-
-    # ✅ XP calculation
-    xp_result = calculate_xp(
-        streak=user.streak,
-        rank=user.rank,
-        difficulty=mission.difficulty
-    )
-    #infinite xp gain removal with introduction to CAP
-    cap = daily_xp_cap(user.rank) or 0
-
-    #reset daily XP if new day
-    if user.last_xp_date!=today:
-        user.daily_xp=0
-        user.last_xp_date=today
-    available_xp=max(cap-user.daily_xp,0)
-    xp_awarded=min(xp_result["xp_gained"],available_xp)
-    user.xp+=xp_awarded
-    user.daily_xp+=xp_awarded
-
-    # ✅ Rank evaluation (Day 14)
-    old_rank = user.rank
-    new_rank = calculate_rank(user.xp)
-
-    rank_changed = new_rank != old_rank
-    rank_up = (
-        rank_changed and
-        ["E", "D", "C", "B", "A"].index(new_rank) >
-        ["E", "D", "C", "B", "A"].index(old_rank)
-    )
-
-    user.rank = new_rank
-    user.last_active = datetime.utcnow()
-    reward = {"bonus_xp": 0, "unlock": None}
-
-    bonus_xp = 0
-    reward = {"bonus_xp": 0, "unlock": None}
-
-    if rank_up:
-        reward = rank_up_reward(new_rank)
-        bonus_xp = reward["bonus_xp"]
-        user.xp += bonus_xp
-
+  
 
 
     db.commit()
@@ -164,16 +118,16 @@ def complete_mission(mission_id: int):
     return {
         "status": "Mission completed",
         "mission_id": mission_id,
-        **xp_result,
+        **result["xp_result"],
         "total_xp": user.xp,
         "streak": user.streak,
         "rank": user.rank,
-        "rank_changed": rank_changed,
-        "rank_up": rank_up,
-        "rank_reward":reward,
+        "rank_changed": result["rank_changed"],
+        "rank_up": result["rank_up"],
+        "rank_reward":result["rank_reward"],
         "daily_xp":user.daily_xp,
-        "daily_xp_cap":cap,
-        "xp_blocked":xp_result["xp_gained"]-xp_awarded
+        "daily_xp_cap":result["cap"],
+        "xp_blocked":result["xp_result"]["xp_gained"]-result["xp_awarded"]
     } 
 
 
