@@ -1,25 +1,33 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from services.xp_service import (
     calculate_xp,
     calculate_rank,
     daily_xp_cap,
-    rank_up_reward
+    rank_up_reward,
+    streak_phase
 )
+
+RANK_ORDER = ["E", "D", "C", "B", "A"]
 
 def process_mission_completion(user, mission):
     today = date.today()
 
-    # Streak logic
-    if user.last_active and user.last_active.date() == today.replace(day=today.day - 1):
+    # --- Streak Logic ---
+    if user.last_active and user.last_active.date() == today - timedelta(days=1):
         user.streak += 1
     else:
         user.streak = 1
 
-    # XP calculation
+    # --- Phase Logic ---
+    phase_data = streak_phase(user.streak)
+    phase_multiplier = phase_data["multiplier"]
+
+    # --- XP Calculation ---
     xp_result = calculate_xp(
         streak=user.streak,
         rank=user.rank,
-        difficulty=mission.difficulty
+        difficulty=mission.difficulty,
+        phase_multiplier=phase_multiplier
     )
 
     cap = daily_xp_cap(user.rank)
@@ -34,19 +42,21 @@ def process_mission_completion(user, mission):
     user.xp += xp_awarded
     user.daily_xp += xp_awarded
 
-    # Rank evaluation
+    # --- Rank Evaluation ---
     old_rank = user.rank
     new_rank = calculate_rank(user.xp)
 
+    old_index = RANK_ORDER.index(old_rank)
+    new_index = RANK_ORDER.index(new_rank)
+
     rank_changed = new_rank != old_rank
-    rank_up = False
+    rank_up = new_index > old_index
+
     reward = {"bonus_xp": 0, "unlock": None}
 
-    if rank_changed:
-        if new_rank != old_rank:
-            reward = rank_up_reward(new_rank)
-            user.xp += reward["bonus_xp"]
-            rank_up = True
+    if rank_up:
+        reward = rank_up_reward(new_rank)
+        user.xp += reward["bonus_xp"]
 
     user.rank = new_rank
     user.last_active = datetime.utcnow()
@@ -58,5 +68,6 @@ def process_mission_completion(user, mission):
         "rank_changed": rank_changed,
         "rank_up": rank_up,
         "rank_reward": reward,
-        "daily_cap": cap
+        "daily_cap": cap,
+        "phase": phase_data["phase"]
     }

@@ -14,3 +14,4 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     daily_xp=Column(Integer,default=0)
     last_xp_date=Column(Date,nullable=True)
+    phase=Column(String,default="Ignition")
