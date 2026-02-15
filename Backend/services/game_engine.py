@@ -21,6 +21,8 @@ def process_mission_completion(user, mission):
     # --- Phase Logic ---
     phase_data = streak_phase(user.streak)
     phase_multiplier = phase_data["multiplier"]
+    # Persist phase
+    user.current_phase = phase_data["phase"]
 
     # --- XP Calculation ---
     xp_result = calculate_xp(

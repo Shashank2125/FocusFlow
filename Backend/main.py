@@ -148,6 +148,9 @@ def daily_check(user_id: int):
     old_rank = user.rank
 
     if should_apply_penalty(user.last_active, today):
+
+        momentum_shield = user.streak >= 15  # 🛡 Shield activates at 15+
+
         penalty_xp = rank_penalty(user.rank)
         user.xp = max(user.xp - penalty_xp, 0)
         user.streak = 0
@@ -155,12 +158,18 @@ def daily_check(user_id: int):
 
         # 🔽 Rank recalculation after penalty
         new_rank = calculate_rank(user.xp)
+
         if new_rank != old_rank:
-            rank_dropped = True
-            user.rank = new_rank
+            if not momentum_shield:
+                rank_dropped = True
+                user.rank = new_rank
+            else:
+            # Shield protects rank
+                user.rank = old_rank
 
         user.last_active = datetime.utcnow()
         db.commit()
+
 
     result = {
         "penalty": penalty_applied,
@@ -168,7 +177,8 @@ def daily_check(user_id: int):
         "xp": user.xp,
         "streak": user.streak,
         "rank": user.rank,
-        "rank_dropped": rank_dropped
+        "rank_dropped": rank_dropped,
+        "momentum_shield_active":user.streak >= 15
     }
 
     db.close()
