@@ -9,6 +9,8 @@ from services.xp_service import rank_progress
 from services.xp_service import rank_up_reward,daily_xp_cap
 from services.game_engine import process_mission_completion
 
+from services.penalty_service import apply_decay_penalty
+
 
 from services.xp_service import (
     calculate_xp,
@@ -132,8 +134,10 @@ def complete_mission(mission_id: int):
 
 
 
+
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id: int):
+
     db = SessionLocal()
     today = date.today()
 
@@ -142,47 +146,23 @@ def daily_check(user_id: int):
         db.close()
         return {"error": "User not found"}
 
-    penalty_applied = False
-    penalty_xp = 0
-    rank_dropped = False
-    old_rank = user.rank
+    result = apply_decay_penalty(user, today)
 
-    if should_apply_penalty(user.last_active, today):
-
-        momentum_shield = user.streak >= 15  # 🛡 Shield activates at 15+
-
-        penalty_xp = rank_penalty(user.rank)
-        user.xp = max(user.xp - penalty_xp, 0)
-        user.streak = 0
-        penalty_applied = True
-
-        # 🔽 Rank recalculation after penalty
-        new_rank = calculate_rank(user.xp)
-
-        if new_rank != old_rank:
-            if not momentum_shield:
-                rank_dropped = True
-                user.rank = new_rank
-            else:
-            # Shield protects rank
-                user.rank = old_rank
-
-        user.last_active = datetime.utcnow()
+    if result["penalty"]:
         db.commit()
 
-
-    result = {
-        "penalty": penalty_applied,
-        "penalty_xp": penalty_xp,
+    response = {
+        "penalty": result["penalty"],
+        "penalty_xp": result["penalty_xp"],
         "xp": user.xp,
         "streak": user.streak,
         "rank": user.rank,
-        "rank_dropped": rank_dropped,
-        "momentum_shield_active":user.streak >= 15
+        "rank_dropped": result["rank_dropped"],
+        "momentum_shield_active": result["momentum_shield_active"]
     }
 
     db.close()
-    return result
+    return response
 
 @app.get("/profile/{user_id}")
 def get_profile(user_id: int):
