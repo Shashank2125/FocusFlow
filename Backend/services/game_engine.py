@@ -41,8 +41,16 @@ def process_mission_completion(user, mission):
     available_xp = max(cap - user.daily_xp, 0)
     xp_awarded = min(xp_result["xp_gained"], available_xp)
 
-    user.xp += xp_awarded
-    user.daily_xp += xp_awarded
+# --- Debt System ---
+    debt_paid = 0
+    if user.xp_debt and user.xp_debt > 0:
+        debt_paid = min(user.xp_debt, xp_awarded)
+        user.xp_debt -= debt_paid
+        xp_awarded -= debt_paid
+
+        user.xp += xp_awarded
+        user.daily_xp += (xp_awarded + debt_paid)
+
 
     # --- Rank Evaluation ---
     old_rank = user.rank
@@ -71,5 +79,9 @@ def process_mission_completion(user, mission):
         "rank_up": rank_up,
         "rank_reward": reward,
         "daily_cap": cap,
-        "phase": phase_data["phase"]
+        "phase": phase_data["phase"],
+        "phase_multiplier":phase_multiplier,
+        "debt_paid": debt_paid,
+        "xp_debt_remaining": user.xp_debt,
+
     }

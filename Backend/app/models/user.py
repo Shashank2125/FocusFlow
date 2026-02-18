@@ -15,3 +15,5 @@ class User(Base):
     daily_xp=Column(Integer,default=0)
     last_xp_date=Column(Date,nullable=True)
     phase=Column(String,default="Ignition")
+    xp_debt = Column(Integer, default=0)
+

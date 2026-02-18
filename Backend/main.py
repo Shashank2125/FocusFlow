@@ -137,7 +137,6 @@ def complete_mission(mission_id: int):
 
 @app.get("/users/daily-check/{user_id}")
 def daily_check(user_id: int):
-
     db = SessionLocal()
     today = date.today()
 
@@ -151,10 +150,13 @@ def daily_check(user_id: int):
     if result["penalty"]:
         db.commit()
 
+    db.refresh(user)
+
     response = {
         "penalty": result["penalty"],
         "penalty_xp": result["penalty_xp"],
         "xp": user.xp,
+        "xp_debt": user.xp_debt,  # if you added debt
         "streak": user.streak,
         "rank": user.rank,
         "rank_dropped": result["rank_dropped"],
@@ -163,6 +165,8 @@ def daily_check(user_id: int):
 
     db.close()
     return response
+
+
 
 @app.get("/profile/{user_id}")
 def get_profile(user_id: int):
