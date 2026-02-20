@@ -17,11 +17,6 @@ from services.xp_service import (
     calculate_rank,
     is_difficulty_allowed
 )
-from services.penalty_service import (
-    rank_penalty,
-    should_apply_penalty
-)
-
 app = FastAPI()
 
 
@@ -151,6 +146,9 @@ def daily_check(user_id: int):
         db.commit()
 
     db.refresh(user)
+    if user.overdrive_expires != today:
+        user.overdrive_active = False
+
 
     response = {
         "penalty": result["penalty"],

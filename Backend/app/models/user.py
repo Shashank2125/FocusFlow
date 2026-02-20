@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Date
+from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean
 from app.db.database import Base
 from datetime import datetime
 
@@ -16,4 +16,7 @@ class User(Base):
     last_xp_date=Column(Date,nullable=True)
     phase=Column(String,default="Ignition")
     xp_debt = Column(Integer, default=0)
+    overdrive_active = Column(Boolean, default=False)
+    overdrive_expires = Column(Date, nullable=True)
+
 
