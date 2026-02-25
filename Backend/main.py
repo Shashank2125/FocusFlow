@@ -8,6 +8,7 @@ from app.models.mission import Mission
 from services.xp_service import rank_progress
 from services.xp_service import rank_up_reward,daily_xp_cap
 from services.game_engine import process_mission_completion
+from services.state_engine import determine_user_state
 
 from services.penalty_service import apply_decay_penalty
 
@@ -196,6 +197,9 @@ def dashboard(user_id: int):
     if not user:
         db.close()
         return {"error": "User not found"}
+    
+
+    state = determine_user_state(user, today)
 
     cap = daily_xp_cap(user.rank)
     remaining = max(cap - user.daily_xp, 0)
@@ -208,7 +212,8 @@ def dashboard(user_id: int):
         "daily_xp_cap": cap,
         "xp_remaining_today": remaining,
         "rank_progress": rank_progress(user.xp, user.rank),
-        "can_gain_xp_today": remaining > 0
+        "can_gain_xp_today": remaining > 0,
+        "current_state": state
     }
 
     db.close()
