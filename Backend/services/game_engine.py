@@ -24,25 +24,20 @@ def process_mission_completion(user, mission):
     # Persist phase
     user.current_phase = phase_data["phase"]
     #overdrive
-    overdrive_multiplier = 1.5 if (
-    user.overdrive_active and user.overdrive_expires == today
-) else 1.0
+    
 
 
 
 
 
 
-
-    # --- XP Calculation ---
     xp_result = calculate_xp(
-        streak=user.streak,
-        rank=user.rank,
-        difficulty=mission.difficulty,
-        phase_multiplier=phase_multiplier,
-        overdrive_multiplier=overdrive_multiplier
-    )
-
+    streak=user.streak,
+    rank=user.rank,
+    difficulty=mission.difficulty,
+    phase_multiplier=phase_multiplier,
+    user=user
+)
     cap = daily_xp_cap(user.rank)
 
     if user.last_xp_date != today:

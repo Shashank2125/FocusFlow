@@ -1,5 +1,5 @@
 # services/xp_service.py
-from services.game_engine import overdrive_multiplier
+from services.modifiers import overdrive_multiplier
 
 def calculate_base_xp(streak: int) -> int:
     """
@@ -64,7 +64,7 @@ def normalize_difficulty(difficulty):
 
 
 
-def calculate_xp(streak: int, rank: str, difficulty) -> dict:
+def calculate_xp(streak: int, rank: str, difficulty,user) -> dict:
     """
     Single source of truth for XP calculation.
     """
@@ -77,9 +77,10 @@ def calculate_xp(streak: int, rank: str, difficulty) -> dict:
 
     #streak multiplier
     phase_data=streak_phase(streak)
+    o_mult=overdrive_multiplier(user)
     phase_mult=phase_data["multiplier"]
 
-    xp_gained = int(base_xp * r_mult * d_mult*phase_mult*overdrive_multiplier)
+    xp_gained = int(base_xp * r_mult * d_mult*phase_mult*o_mult)
     return {
         "xp_gained": xp_gained,
         "base_xp": base_xp,
