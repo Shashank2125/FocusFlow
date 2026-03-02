@@ -1,69 +1,78 @@
-from datetime import datetime
-from services.xp_service import calculate_rank
+# services/xp_service.py
+
+from services.modifiers import overdrive_multiplier
+
+RANK_THRESHOLDS = {
+    "E": 0,
+    "D": 500,
+    "C": 1500,
+    "B": 3000,
+    "A": 6000
+}
+
+RANK_ORDER = ["E", "D", "C", "B", "A"]
 
 
-def rank_penalty(rank: str) -> int:
+def calculate_base_xp(streak: int) -> int:
+    return 50 + min(streak * 10, 200)
+
+
+def rank_multiplier(rank: str) -> float:
     return {
-        "E": 100,
-        "D": 150,
-        "C": 250,
-        "B": 400,
-        "A": 600
-    }.get(rank, 100)
+        "E": 1.0,
+        "D": 1.1,
+        "C": 1.25,
+        "B": 1.5,
+        "A": 2.0
+    }.get(rank, 1.0)
 
 
-def apply_decay_penalty(user, today):
-
-    if not user.last_active:
-        return {
-            "penalty": False,
-            "penalty_xp": 0,
-            "rank_dropped": False,
-            "momentum_shield_active": False
-        }
-
-    days_missed = (today - user.last_active.date()).days
-
-    # No penalty for 0 or 1 day gap
-    if days_missed <= 1:
-        return {
-            "penalty": False,
-            "penalty_xp": 0,
-            "rank_dropped": False,
-            "momentum_shield_active": False
-        }
-
-    base_penalty = rank_penalty(user.rank)
-    momentum_shield = user.streak >= 15
-
-    # Scaling decay (days_missed - 1 because first missed day is buffer)
-    decay_penalty = base_penalty * (days_missed - 1)
-
-    # Momentum shield blocks ONE day's penalty
-    if momentum_shield:
-        decay_penalty -= base_penalty
-
-    decay_penalty = max(decay_penalty, 0)
-
-    immediate_loss = decay_penalty // 2
-    debt_loss = decay_penalty - immediate_loss
-
-    user.xp = max(user.xp - immediate_loss, 0)
-    user.xp_debt += debt_loss
-    user.streak = 0
+def difficulty_multiplier(difficulty: str) -> float:
+    return {
+        "EASY": 1.0,
+        "NORMAL": 1.25,
+        "HARD": 1.5
+    }.get(difficulty, 1.0)
 
 
-    old_rank = user.rank
-    new_rank = calculate_rank(user.xp)
+def calculate_rank(xp: int) -> str:
+    if xp >= 6000:
+        return "A"
+    elif xp >= 3000:
+        return "B"
+    elif xp >= 1500:
+        return "C"
+    elif xp >= 500:
+        return "D"
+    return "E"
 
-    rank_dropped = new_rank != old_rank
-    user.rank = new_rank
 
-    user.last_active = datetime.utcnow()
+def streak_phase(streak: int):
+    if streak >= 15:
+        return {"phase": "Discipline Mode", "multiplier": 1.3}
+    elif streak >= 8:
+        return {"phase": "Flow State", "multiplier": 1.2}
+    elif streak >= 4:
+        return {"phase": "Momentum", "multiplier": 1.1}
+    return {"phase": "Ignition", "multiplier": 1.0}
+
+
+def calculate_xp(streak, rank, difficulty, user):
+    base = calculate_base_xp(streak)
+    r_mult = rank_multiplier(rank)
+    d_mult = difficulty_multiplier(difficulty)
+
+    phase_data = streak_phase(streak)
+    phase_mult = phase_data["multiplier"]
+
+    o_mult = overdrive_multiplier(user)
+
+    xp = int(base * r_mult * d_mult * phase_mult * o_mult)
 
     return {
-        "penalty": True,
-        "penalty_xp": decay_penalty,
-        "rank_dropped": rank_dropped,
-        "momentum_shield_active": momentum_shield
+        "xp_gained": xp,
+        "base_xp": base,
+        "phase": phase_data["phase"],
+        "phase_multiplier": phase_mult,
+        "overdrive_multiplier": o_mult
     }

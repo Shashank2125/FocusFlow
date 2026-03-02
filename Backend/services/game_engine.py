@@ -1,82 +1,25 @@
-from datetime import datetime, date, timedelta
-from services.xp_service import (
-    calculate_xp,
-    calculate_rank,
-    daily_xp_cap,
-    rank_up_reward,
-    streak_phase
-)
+# services/game_engine.py
 
-RANK_ORDER = ["E", "D", "C", "B", "A"]
-
-def process_mission_completion(user, mission):
-    today = date.today()
-
-    # --- Streak Logic ---
-    if user.last_active and user.last_active.date() == today - timedelta(days=1):
-        user.streak += 1
-    else:
-        user.streak = 1
-
-    # --- Phase Logic ---
-    phase_data = streak_phase(user.streak)
-    phase_multiplier = phase_data["multiplier"]
-    # Persist phase
-    user.current_phase = phase_data["phase"]
-    #overdrive
-    
+from datetime import datetime
+from services.xp_service import calculate_xp, calculate_rank
 
 
-
-
-
+def process_mission(user, mission):
 
     xp_result = calculate_xp(
-    streak=user.streak,
-    rank=user.rank,
-    difficulty=mission.difficulty,
-    phase_multiplier=phase_multiplier,
-    user=user
-)
-    cap = daily_xp_cap(user.rank)
+        streak=user.streak,
+        rank=user.rank,
+        difficulty=mission.difficulty,
+        user=user
+    )
 
-    if user.last_xp_date != today:
-        user.daily_xp = 0
-        user.last_xp_date = today
+    xp_awarded = xp_result["xp_gained"]
 
-    available_xp = max(cap - user.daily_xp, 0)
-    xp_awarded = min(xp_result["xp_gained"], available_xp)
+    user.xp += xp_awarded
+    user.daily_xp += xp_awarded
 
-# --- Debt System ---
-    debt_paid = 0
-    if user.xp_debt and user.xp_debt > 0:
-        debt_paid = min(user.xp_debt, xp_awarded)
-        user.xp_debt -= debt_paid
-        xp_awarded -= debt_paid
-
-        user.xp += xp_awarded
-        user.daily_xp += (xp_awarded + debt_paid)
-    if user.xp_debt == 0 and debt_paid > 0:
-        user.overdrive_active = True
-        user.overdrive_expires = today
-
-
-
-    # --- Rank Evaluation ---
     old_rank = user.rank
     new_rank = calculate_rank(user.xp)
-
-    old_index = RANK_ORDER.index(old_rank)
-    new_index = RANK_ORDER.index(new_rank)
-
-    rank_changed = new_rank != old_rank
-    rank_up = new_index > old_index
-
-    reward = {"bonus_xp": 0, "unlock": None}
-
-    if rank_up:
-        reward = rank_up_reward(new_rank)
-        user.xp += reward["bonus_xp"]
 
     user.rank = new_rank
     user.last_active = datetime.utcnow()
@@ -84,14 +27,5 @@ def process_mission_completion(user, mission):
 
     return {
         "xp_result": xp_result,
-        "xp_awarded": xp_awarded,
-        "rank_changed": rank_changed,
-        "rank_up": rank_up,
-        "rank_reward": reward,
-        "daily_cap": cap,
-        "phase": phase_data["phase"],
-        "phase_multiplier":phase_multiplier,
-        "debt_paid": debt_paid,
-        "xp_debt_remaining": user.xp_debt,
-
+        "rank_changed": new_rank != old_rank
     }
