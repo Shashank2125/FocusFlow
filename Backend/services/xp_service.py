@@ -76,3 +76,13 @@ def calculate_xp(streak, rank, difficulty, user):
         "phase_multiplier": phase_mult,
         "overdrive_multiplier": o_mult
     }
+def state_multiplier(state):
+
+    return {
+        "Recovery": 1.0,
+        "Momentum": 1.1,
+        "Flow": 1.2,
+        "Discipline": 1.3,
+        "DebtRecovery": 0.9,
+        "Burnout": 0.8
+    }.get(state, 1.0)

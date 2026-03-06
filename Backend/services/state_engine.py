@@ -1,11 +1,15 @@
 def determine_user_state(user, today):
 
-    if user.xp_debt > 0:
+    # --- Debt state overrides everything ---
+    if getattr(user, "xp_debt", 0) > 0:
         return "Recovery Mode"
 
-    if user.overdrive_active and user.overdrive_expires == today:
-        return "Overdrive Mode"
+    # --- Overdrive check ---
+    if getattr(user, "overdrive_active", False):
+        if user.overdrive_expires and user.overdrive_expires >= today:
+            return "Overdrive Mode"
 
+    # --- Streak based states ---
     if user.streak >= 15:
         return "Discipline Mode"
 
