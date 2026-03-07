@@ -1,78 +1,68 @@
-# services/xp_service.py
+# services/penalty_service.py
 
-from services.modifiers import overdrive_multiplier
-
-RANK_THRESHOLDS = {
-    "E": 0,
-    "D": 500,
-    "C": 1500,
-    "B": 3000,
-    "A": 6000
-}
-
-RANK_ORDER = ["E", "D", "C", "B", "A"]
+from datetime import datetime
+from services.xp_service import calculate_rank
+from services.telemetry_service import log_event
 
 
-def calculate_base_xp(streak: int) -> int:
-    return 50 + min(streak * 10, 200)
-
-
-def rank_multiplier(rank: str) -> float:
+def rank_penalty(rank: str) -> int:
     return {
-        "E": 1.0,
-        "D": 1.1,
-        "C": 1.25,
-        "B": 1.5,
-        "A": 2.0
-    }.get(rank, 1.0)
+        "E": 100,
+        "D": 150,
+        "C": 250,
+        "B": 400,
+        "A": 600
+    }.get(rank, 100)
 
 
-def difficulty_multiplier(difficulty: str) -> float:
-    return {
-        "EASY": 1.0,
-        "NORMAL": 1.25,
-        "HARD": 1.5
-    }.get(difficulty, 1.0)
+def apply_decay_penalty(user, today):
 
+    if not user.last_active:
+        return {"penalty": False}
 
-def calculate_rank(xp: int) -> str:
-    if xp >= 6000:
-        return "A"
-    elif xp >= 3000:
-        return "B"
-    elif xp >= 1500:
-        return "C"
-    elif xp >= 500:
-        return "D"
-    return "E"
+    days_missed = (today - user.last_active.date()).days
 
+    if days_missed <= 1:
+        return {"penalty": False}
 
-def streak_phase(streak: int):
-    if streak >= 15:
-        return {"phase": "Discipline Mode", "multiplier": 1.3}
-    elif streak >= 8:
-        return {"phase": "Flow State", "multiplier": 1.2}
-    elif streak >= 4:
-        return {"phase": "Momentum", "multiplier": 1.1}
-    return {"phase": "Ignition", "multiplier": 1.0}
+    momentum_shield = user.streak >= 15
+    penalty_value = rank_penalty(user.rank)
 
+    # Scaled decay
+    decay = penalty_value * (days_missed - 1)
 
-def calculate_xp(streak, rank, difficulty, user):
-    base = calculate_base_xp(streak)
-    r_mult = rank_multiplier(rank)
-    d_mult = difficulty_multiplier(difficulty)
+    if momentum_shield:
+        decay -= penalty_value
 
-    phase_data = streak_phase(streak)
-    phase_mult = phase_data["multiplier"]
+    decay = max(decay, 0)
 
-    o_mult = overdrive_multiplier(user)
+    # Debt split
+    immediate_loss = decay // 2
+    debt_loss = decay - immediate_loss
 
-    xp = int(base * r_mult * d_mult * phase_mult * o_mult)
+    user.xp = max(user.xp - immediate_loss, 0)
+    user.xp_debt += debt_loss
+    user.streak = 0
+
+    old_rank = user.rank
+    new_rank = calculate_rank(user.xp)
+
+    if new_rank != old_rank:
+        user.rank = new_rank
+
+    user.last_active = datetime.utcnow()
+
+    # ✅ Telemetry logging
+    log_event(user, "PENALTY_APPLIED", {
+        "days_missed": days_missed,
+        "penalty_xp": decay,
+        "immediate_loss": immediate_loss,
+        "debt_added": debt_loss,
+        "momentum_shield": momentum_shield
+    })
 
     return {
-        "xp_gained": xp,
-        "base_xp": base,
-        "phase": phase_data["phase"],
-        "phase_multiplier": phase_mult,
-        "overdrive_multiplier": o_mult
+        "penalty": True,
+        "penalty_xp": decay,
+        "momentum_shield_active": momentum_shield
     }

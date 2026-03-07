@@ -1,6 +1,7 @@
 # services/mission_generator.py
 
 import random
+from services.telemetry_service import log_event
 
 
 EASY_MISSIONS = [
@@ -49,6 +50,10 @@ def generate_mission(user):
     else:
         difficulty = "EASY"
         description = random.choice(EASY_MISSIONS)
+    log_event(user, "MISSION_GENERATED", {
+    "difficulty": difficulty,
+    "description": description
+    })
 
     return {
         "description": description,
