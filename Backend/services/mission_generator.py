@@ -31,28 +31,38 @@ RECOVERY_MISSIONS = [
 
 def generate_mission(user):
 
-    # Recovery state
-    if hasattr(user, "xp_debt") and user.xp_debt > 0:
+    state = getattr(user, "current_state", "NORMAL")
+
+    # Behavior-state driven mission selection
+    if state == "BURNOUT":
         difficulty = "EASY"
         description = random.choice(RECOVERY_MISSIONS)
 
-    # High streak users
-    elif user.streak >= 15:
-        difficulty = "HARD"
-        description = random.choice(HARD_MISSIONS)
+    elif state == "RECOVERY":
+        difficulty = "EASY"
+        description = random.choice(EASY_MISSIONS)
 
-    # Medium streak
-    elif user.streak >= 5:
+    elif state == "MOMENTUM":
         difficulty = "NORMAL"
         description = random.choice(NORMAL_MISSIONS)
 
-    # Beginner
+    elif state == "FLOW":
+        difficulty = "HARD"
+        description = random.choice(HARD_MISSIONS)
+
+    elif state == "DISCIPLINE":
+        difficulty = "HARD"
+        description = random.choice(HARD_MISSIONS)
+
     else:
         difficulty = "EASY"
         description = random.choice(EASY_MISSIONS)
+
+    # Telemetry event
     log_event(user, "MISSION_GENERATED", {
-    "difficulty": difficulty,
-    "description": description
+        "state": state,
+        "difficulty": difficulty,
+        "description": description
     })
 
     return {

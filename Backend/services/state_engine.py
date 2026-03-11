@@ -1,22 +1,45 @@
-def determine_user_state(user, today):
+# services/state_engine.py
 
-    # --- Debt state overrides everything ---
-    if getattr(user, "xp_debt", 0) > 0:
-        return "Recovery Mode"
+def get_behavior_state(user):
+    """
+    Determines the user's behavioral state.
+    """
 
-    # --- Overdrive check ---
-    if getattr(user, "overdrive_active", False):
-        if user.overdrive_expires and user.overdrive_expires >= today:
-            return "Overdrive Mode"
+    # Burnout
+    if user.xp_debt > 300:
+        return "BURNOUT"
 
-    # --- Streak based states ---
-    if user.streak >= 15:
-        return "Discipline Mode"
+    # Recovery
+    if user.xp_debt > 0:
+        return "RECOVERY"
 
-    if user.streak >= 8:
-        return "Flow State"
+    # Discipline
+    if user.streak >= 20:
+        return "DISCIPLINE"
 
+    # Flow
+    if user.streak >= 10:
+        return "FLOW"
+
+    # Momentum
     if user.streak >= 4:
-        return "Momentum"
+        return "MOMENTUM"
 
-    return "Ignition"
+    return "NORMAL"
+from services.telemetry_service import log_event
+
+
+def update_behavior_state(user):
+
+    state = get_behavior_state(user)
+
+    if user.current_state != state:
+
+        log_event(user, "STATE_CHANGED", {
+            "old_state": user.current_state,
+            "new_state": state
+        })
+
+        user.current_state = state
+
+    return state
