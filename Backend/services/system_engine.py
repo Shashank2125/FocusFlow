@@ -1,9 +1,9 @@
 # services/system_engine.py
 
-from services.mission_generator import generate_mission
 from services.penalty_service import apply_decay_penalty
-from services.game_engine import process_mission
 from services.state_engine import update_behavior_state
+from services.mission_generator import generate_mission
+from services.game_engine import process_mission
 
 
 def process_daily_cycle(user, mission, today):
@@ -14,9 +14,9 @@ def process_daily_cycle(user, mission, today):
     penalty_result = apply_decay_penalty(user, today)
     response["penalty"] = penalty_result
 
-    # 2️⃣ Update behavioral state
-    state = update_behavior_state(user)
-    response["state"] = state
+    # 2️⃣ Update behavior state (after penalties)
+    state_before = update_behavior_state(user)
+    response["state_before"] = state_before
 
     # 3️⃣ Generate mission if none exists
     if mission is None:
@@ -32,7 +32,6 @@ def process_daily_cycle(user, mission, today):
         if not mission.completed:
 
             mission_result = process_mission(user, mission)
-
             response["mission"] = mission_result
             response["mission_completed"] = True
 
@@ -40,7 +39,11 @@ def process_daily_cycle(user, mission, today):
 
             response["mission_completed"] = False
 
-    # 5️⃣ Return updated user stats
+    # 5️⃣ Recalculate behavior state after mission
+    state_after = update_behavior_state(user)
+    response["state_after"] = state_after
+
+    # 6️⃣ Return updated user stats
     response["user_stats"] = {
         "xp": user.xp,
         "rank": user.rank,
