@@ -20,6 +20,8 @@ class User(Base):
     overdrive_expires = Column(Date, nullable=True)
     
     current_state = Column(String, default="NORMAL")
+    overdrive_active = Column(Boolean, default=False)
+    overdrive_expires = Column(Date, nullable=True)
 
 
 
