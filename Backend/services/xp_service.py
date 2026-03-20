@@ -58,6 +58,7 @@ def streak_phase(streak: int):
 
 
 def calculate_xp(streak, rank, difficulty, user):
+
     base = calculate_base_xp(streak)
     r_mult = rank_multiplier(rank)
     d_mult = difficulty_multiplier(difficulty)
@@ -65,7 +66,8 @@ def calculate_xp(streak, rank, difficulty, user):
     phase_data = streak_phase(streak)
     phase_mult = phase_data["multiplier"]
 
-    o_mult = overdrive_multiplier(user)
+    # ✅ Overdrive multiplier
+    o_mult = 1.5 if getattr(user, "overdrive_active", False) else 1.0
 
     xp = int(base * r_mult * d_mult * phase_mult * o_mult)
 
@@ -74,7 +76,7 @@ def calculate_xp(streak, rank, difficulty, user):
         "base_xp": base,
         "phase": phase_data["phase"],
         "phase_multiplier": phase_mult,
-        "overdrive_multiplier": o_mult
+        "overdrive": o_mult
     }
 def state_multiplier(state):
 

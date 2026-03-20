@@ -3,6 +3,7 @@
 from datetime import datetime
 from services.xp_service import calculate_xp, calculate_rank
 from services.telemetry_service import log_event
+from services.overdrive_service import activate_overdrive
 
 
 def process_mission(user, mission):
@@ -50,8 +51,10 @@ def process_mission(user, mission):
     })
 
     if debt_cleared:
+        activate_overdrive(user)
+
         log_event(user, "DEBT_CLEARED", {
-            "user_id": user.id
+        "user_id": user.id
         })
 
     if new_rank != old_rank:

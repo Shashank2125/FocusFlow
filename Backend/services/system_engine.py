@@ -4,9 +4,11 @@ from services.penalty_service import apply_decay_penalty
 from services.state_engine import update_behavior_state
 from services.mission_generator import generate_mission
 from services.game_engine import process_mission
+from services.overdrive_service import check_overdrive
 
 
 def process_daily_cycle(user, mission, today):
+    check_overdrive(user)
 
     response = {}
 
